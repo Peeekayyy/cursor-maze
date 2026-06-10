@@ -57,14 +57,14 @@
   }
   /* gentle "boat riding the swell" motion: rise/fall + a slow rock */
   @keyframes floatShip {
-    0%   { transform: translateY(0)    rotate(-1.4deg); }
-    50%  { transform: translateY(-9px) rotate(1.4deg); }
-    100% { transform: translateY(0)    rotate(-1.4deg); }
+    0%   { transform: translateY(0); }
+    50%  { transform: translateY(-9px); }
+    100% { transform: translateY(0); }
   }
   @keyframes bobShip {
-    0%   { transform: translateY(0)    rotate(0.8deg); }
-    50%  { transform: translateY(-5px) rotate(-0.8deg); }
-    100% { transform: translateY(0)    rotate(0.8deg); }
+    0%   { transform: translateY(0); }
+    50%  { transform: translateY(-5px); }
+    100% { transform: translateY(0); }
   }
 
   /* ---- Arcade menu ---- */
@@ -180,7 +180,7 @@
     padding-top: 6px;
   }
   .panel {
-    min-width: 190px;
+    min-width: 212px;
     padding: 14px 14px 16px;
     border-radius: 12px;
     background: rgba(0,0,16,0.55);
@@ -241,12 +241,16 @@
   }
   .you { margin-top: 12px; font-size: 0.5rem; color: #8ea0d0; text-align: center; min-height: 1em; }
   .you .rk { color: #ffd23f; }
-  .link-btn {
-    display: block; margin: 8px auto 0; padding: 4px 6px;
-    font-family: inherit; font-size: 0.42rem; letter-spacing: 1px;
-    color: #6b78a0; background: none; border: none; cursor: pointer; text-decoration: underline;
+  .panel-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .mini-btn {
+    font-family: inherit; font-size: 0.45rem; letter-spacing: 1px; cursor: pointer;
+    padding: 8px 10px; border-radius: 8px; color: #aab8e0;
+    background: rgba(0,0,20,0.5); border: 1.5px solid rgba(120,160,255,0.4);
+    box-shadow: 0 0 8px rgba(60,120,255,0.2);
+    transition: box-shadow .15s ease, color .15s ease, transform .08s ease;
   }
-  .link-btn:hover { color: #aab8e0; }
+  .mini-btn:hover { color: #eaf0ff; box-shadow: 0 0 14px rgba(90,150,255,0.55); }
+  .mini-btn:active { transform: translateY(1px); }
   /* username modal */
   .name-box {
     display: flex; flex-direction: column; align-items: center; gap: 12px;
@@ -395,8 +399,10 @@
           <div id="boardLabel" class="panel-label">LEVEL 1 — TOP</div>
           <ol id="scores" class="scores"><li class="empty">— — —</li></ol>
           <div id="you" class="you"></div>
-          <button id="changeName" class="link-btn" type="button">CHANGE NAME</button>
-          <button id="toMenu" class="link-btn" type="button">← MENU</button>
+          <div class="panel-btns">
+            <button id="changeName" class="mini-btn" type="button">CHANGE NAME</button>
+            <button id="toMenu" class="mini-btn" type="button">MENU</button>
+          </div>
         </div>
       </div>
     </div>
