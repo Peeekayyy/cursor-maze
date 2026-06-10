@@ -1,0 +1,7 @@
+# local-only Claude Code / preview config
+.claude/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+*.log
