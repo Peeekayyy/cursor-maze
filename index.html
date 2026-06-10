@@ -286,6 +286,22 @@
     border-radius: 8px;
     background: transparent;
   }
+  #powerHud {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    font-family: "Press Start 2P", ui-monospace, monospace;
+    font-size: 0.7rem; letter-spacing: 1px;
+    color: #04121a; background: #ffd23f;
+    padding: 7px 14px; border-radius: 999px;
+    box-shadow: 0 0 18px rgba(255,210,63,0.85);
+    display: none; z-index: 5; pointer-events: none; white-space: nowrap;
+    animation: hudPulse 0.6s ease-in-out infinite alternate;
+  }
+  #powerHud.show { display: block; }
+  @keyframes hudPulse {
+    from { box-shadow: 0 0 12px rgba(255,210,63,0.6); }
+    to   { box-shadow: 0 0 28px rgba(255,210,63,1); }
+  }
+  @media (prefers-reduced-motion: reduce) { #powerHud { animation: none; } }
   .overlay {
     position: absolute;
     inset: 0;
@@ -342,6 +358,7 @@
     <div class="play-area">
       <div class="stage">
         <canvas id="maze"></canvas>
+        <div id="powerHud"></div>
         <div id="overlay" class="overlay"><div id="overlayMsg" class="overlay-msg"></div></div>
         <div id="nameModal" class="overlay">
           <form id="nameForm" class="name-box">
@@ -392,9 +409,9 @@
 
   // ---- Levels (size-based) ----
   const LEVELS = [
-    { n: 1, cols: 9,  rows: 9,  label: "SMALL" },
-    { n: 2, cols: 12, rows: 12, label: "MEDIUM" },
-    { n: 3, cols: 15, rows: 15, label: "LARGE" },
+    { n: 1, cols: 9,  rows: 9,  label: "SMALL",  power: 0 },
+    { n: 2, cols: 12, rows: 12, label: "MEDIUM", power: 1 },
+    { n: 3, cols: 15, rows: 15, label: "LARGE",  power: 2 },
   ];
   const MAX_LEVEL = LEVELS.length;
   const levelDef = (n) => LEVELS[n - 1];
@@ -409,6 +426,8 @@
   const TOL = 5;           // collision tolerance (px)
   const CURSOR_R = 5;
   const TORCH_R = 92;      // torch radius — inner walls are only visible within this of the dot
+  const POWER_MS = 4000;   // a power-up fully lights the maze for this long
+  const COLLECT_R = 38;    // how close the dot must get to grab a power-up
   const TAIL_LEN = 16;     // number of trailing points behind the dot
   const POPUP_MS = 900;
   const ROT_SPEED = 0.00028; // starfield rotation, radians/frame
@@ -447,6 +466,7 @@
   const overlayEl = document.getElementById("overlay");
   const overlayMsgEl = document.getElementById("overlayMsg");
   const timerEl = document.getElementById("timer");
+  const powerHud = document.getElementById("powerHud");
   const scoresEl = document.getElementById("scores");
   const boardLabelEl = document.getElementById("boardLabel");
   const youEl = document.getElementById("you");
@@ -491,6 +511,10 @@
   let segments = [];       // all walls (used for collision)
   let innerSegs = [];      // walls revealed only by the torch
   let boundarySegs = [];   // outer boundary — always visible
+  let powerups = [];       // light power-ups inside the maze
+  let powerLitUntil = 0;   // performance.now() until which the whole maze stays lit
+  let powerTimer = null;
+  let powerHudInterval = null;
   let startZone = null;
   let exitZone = null;
   let curX = 0, curY = 0;
@@ -597,6 +621,9 @@
     const x0 = GUTTER_X, y0 = PAD_Y;
     startZone = { x: x0, y: y0 + CELL / 2, r: CELL * 0.42 };
     exitZone = { x: x0 + COLS * CELL, y: y0 + (ROWS - 1) * CELL + CELL / 2, r: CELL * 0.42 };
+    powerups = spawnPowerups(levelDef(currentLevel).power || 0);
+    powerLitUntil = 0;
+    clearTimeout(powerTimer);
     resetCursorToStart();
   }
 
@@ -604,6 +631,60 @@
     curX = startZone.x;
     curY = startZone.y;
     trail = [];
+  }
+
+  // Place N power-ups at random cell centers, avoiding the start and exit cells.
+  function spawnPowerups(count) {
+    const result = [];
+    const taken = new Set(["0,0", (COLS - 1) + "," + (ROWS - 1)]);
+    let guard = 0;
+    while (result.length < count && guard < 800) {
+      guard++;
+      const c = (Math.random() * COLS) | 0;
+      const r = (Math.random() * ROWS) | 0;
+      const key = c + "," + r;
+      if (taken.has(key)) continue;
+      taken.add(key);
+      result.push({ x: GUTTER_X + (c + 0.5) * CELL, y: PAD_Y + (r + 0.5) * CELL, active: true });
+    }
+    return result;
+  }
+  // Re-arm power-ups for a fresh attempt at the same maze (after a crash).
+  function resetPowerups() {
+    for (const p of powerups) p.active = true;
+    powerLitUntil = 0;
+    clearTimeout(powerTimer);
+    hidePowerHud();
+  }
+  // Grab any power-up the dot is touching → fully light the maze for POWER_MS.
+  function collectPowerups() {
+    for (const p of powerups) {
+      if (!p.active) continue;
+      const dx = curX - p.x, dy = curY - p.y;
+      if (dx * dx + dy * dy <= COLLECT_R * COLLECT_R) {
+        p.active = false;
+        powerLitUntil = performance.now() + POWER_MS;
+        clearTimeout(powerTimer);
+        powerTimer = setTimeout(() => render(), POWER_MS + 30); // re-darken even if the player stops moving
+        startPowerHud();
+      }
+    }
+  }
+  // "LIGHTS!" badge with a live backwards counter while the maze is lit.
+  function tickPowerHud() {
+    const remMs = powerLitUntil - performance.now();
+    if (remMs <= 0) { hidePowerHud(); return; }
+    powerHud.textContent = "💡 LIGHTS! " + Math.ceil(remMs / 1000);
+    powerHud.classList.add("show");
+  }
+  function startPowerHud() {
+    clearInterval(powerHudInterval);
+    tickPowerHud();
+    powerHudInterval = setInterval(tickPowerHud, 100);
+  }
+  function hidePowerHud() {
+    clearInterval(powerHudInterval);
+    powerHud.classList.remove("show");
   }
 
   // Resize the canvas for a level and build a fresh maze of that size.
@@ -787,37 +868,51 @@
   // ---- Maze rendering ----
   function render() {
     const mx = GUTTER_X - 2, my = PAD_Y - 2, mw = COLS * CELL + 4, mh = ROWS * CELL + 4;
+    const now = performance.now();
+    const fullLit = now < powerLitUntil;   // power-up active → whole maze visible
     ctx.clearRect(0, 0, W, H);
 
     // dark dungeon veil over the play area — the interior stays hidden until lit
     ctx.fillStyle = "rgba(2,4,14,0.92)";
     ctx.fillRect(mx, my, mw, mh);
 
-    // faint torch beam on the "floor" around the dot
-    const beam = ctx.createRadialGradient(curX, curY, 0, curX, curY, TORCH_R);
-    beam.addColorStop(0, "rgba(120,200,255,0.10)");
-    beam.addColorStop(1, "rgba(120,200,255,0)");
-    ctx.fillStyle = beam;
-    ctx.fillRect(mx, my, mw, mh);
+    if (fullLit) {
+      // power-up: light the entire maze (gold wash + every inner wall)
+      ctx.fillStyle = "rgba(255,210,63,0.06)";
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.strokeStyle = COL_WALL;
+      ctx.lineWidth = WALL_W;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (const s of innerSegs) { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); }
+      ctx.stroke();
+    } else {
+      // faint torch beam on the "floor" around the dot
+      const beam = ctx.createRadialGradient(curX, curY, 0, curX, curY, TORCH_R);
+      beam.addColorStop(0, "rgba(120,200,255,0.10)");
+      beam.addColorStop(1, "rgba(120,200,255,0)");
+      ctx.fillStyle = beam;
+      ctx.fillRect(mx, my, mw, mh);
 
-    // inner walls drawn to an offscreen layer, then masked to the torch circle
-    lctx.clearRect(0, 0, W, H);
-    lctx.globalCompositeOperation = "source-over";
-    lctx.strokeStyle = COL_WALL;
-    lctx.lineWidth = WALL_W;
-    lctx.lineCap = "round";
-    lctx.beginPath();
-    for (const s of innerSegs) { lctx.moveTo(s.x1, s.y1); lctx.lineTo(s.x2, s.y2); }
-    lctx.stroke();
-    lctx.globalCompositeOperation = "destination-in";   // keep walls only where the torch shines
-    const mask = lctx.createRadialGradient(curX, curY, 0, curX, curY, TORCH_R);
-    mask.addColorStop(0, "rgba(255,255,255,1)");
-    mask.addColorStop(0.55, "rgba(255,255,255,1)");
-    mask.addColorStop(1, "rgba(255,255,255,0)");
-    lctx.fillStyle = mask;
-    lctx.fillRect(0, 0, W, H);
-    lctx.globalCompositeOperation = "source-over";
-    ctx.drawImage(lightCanvas, 0, 0);
+      // inner walls drawn to an offscreen layer, then masked to the torch circle
+      lctx.clearRect(0, 0, W, H);
+      lctx.globalCompositeOperation = "source-over";
+      lctx.strokeStyle = COL_WALL;
+      lctx.lineWidth = WALL_W;
+      lctx.lineCap = "round";
+      lctx.beginPath();
+      for (const s of innerSegs) { lctx.moveTo(s.x1, s.y1); lctx.lineTo(s.x2, s.y2); }
+      lctx.stroke();
+      lctx.globalCompositeOperation = "destination-in";   // keep walls only where the torch shines
+      const mask = lctx.createRadialGradient(curX, curY, 0, curX, curY, TORCH_R);
+      mask.addColorStop(0, "rgba(255,255,255,1)");
+      mask.addColorStop(0.55, "rgba(255,255,255,1)");
+      mask.addColorStop(1, "rgba(255,255,255,0)");
+      lctx.fillStyle = mask;
+      lctx.fillRect(0, 0, W, H);
+      lctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(lightCanvas, 0, 0);
+    }
 
     // outer boundary — always visible
     ctx.strokeStyle = COL_WALL;
@@ -831,8 +926,34 @@
     drawMarker(startZone, COL_START, "START", "left");
     drawMarker(exitZone, COL_EXIT, "EXIT", "right");
 
+    drawPowerups(fullLit, now);
     drawTail();
     drawCursor();
+  }
+
+  // Power-ups glow in the torchlight (or when the maze is fully lit); pulsing gold orb.
+  function drawPowerups(fullLit, now) {
+    for (const p of powerups) {
+      if (!p.active) continue;
+      const dx = curX - p.x, dy = curY - p.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (!fullLit && d > TORCH_R) continue;   // hidden in the dark
+      const pulse = 0.6 + 0.4 * Math.sin(now * 0.006);
+      ctx.save();
+      ctx.globalAlpha = fullLit ? 1 : clamp(1.2 - d / TORCH_R, 0.25, 1);
+      ctx.shadowColor = "#ffd23f";
+      ctx.shadowBlur = 16 * pulse;
+      ctx.fillStyle = "#ffe680";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6 + 1.5 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#fffbe6";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
   }
 
   function drawTail() {
@@ -924,6 +1045,7 @@
 
   // ---- Game flow ----
   function checkGame() {
+    collectPowerups();
     if (inZone(curX, curY, exitZone)) { winSequence(); return; }
     if (hitsWall(curX, curY)) overSequence();
   }
@@ -931,6 +1053,7 @@
   function overSequence() {
     state = "over";
     stopTimer();                       // freeze the crash time during the popup
+    powerLitUntil = 0; hidePowerHud(); // lights off on a crash
     showOverlay("GAME OVER!", "over", false);
     setStatus("BACK TO START…");
     render();
@@ -938,6 +1061,7 @@
     timer = setTimeout(() => {
       if (state !== "over") return;
       resetCursorToStart();
+      resetPowerups();                 // re-arm power-ups for the retry
       resetTimer();                    // fresh attempt starts at 0:00
       state = "playing";
       hideOverlay();
@@ -949,6 +1073,7 @@
   function winSequence() {
     state = "win";
     stopTimer();                       // timer ends at the exit; final time stays on screen
+    hidePowerHud();
     const finalMs = timerFrozenMs;
     if (document.pointerLockElement === canvas) document.exitPointerLock(); // free the cursor for menus
 
@@ -1054,7 +1179,7 @@
     if (document.pointerLockElement === canvas) document.exitPointerLock();
     clearTimeout(timer);
     state = "menu";
-    hideOverlay(); hideNameModal(); hideLevelComplete();
+    hideOverlay(); hideNameModal(); hideLevelComplete(); hidePowerHud();
     showMenuMain();
     setScreen("menu");
   }
@@ -1063,7 +1188,7 @@
   function startLevel(n) {
     if (n > loadUnlocked()) return;     // safety: locked
     setScreen("game");
-    hideOverlay(); hideNameModal(); hideLevelComplete();
+    hideOverlay(); hideNameModal(); hideLevelComplete(); hidePowerHud();
     loadLevel(n);
     state = "prompt";
     showOverlay("▶ CLICK TO PLAY", "prompt", true);   // fallback if pointer-lock doesn't engage
