@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tic-Tac-Toe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%; background: #000010; color: #eaf0ff;
+    font-family: "Press Start 2P", ui-monospace, monospace; overflow: auto;
+  }
+  #stars { position: fixed; inset: 0; z-index: 0; display: block; pointer-events: none; }
+  .content {
+    position: relative; z-index: 1; min-height: 100vh;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 18px; padding: 22px 18px;
+  }
+  h1 {
+    margin: 0; font-size: 1.2rem; line-height: 1.5; color: #bcd0ff;
+    text-shadow: 0 0 12px rgba(120,160,255,0.8), 0 0 24px rgba(80,120,255,0.5);
+    animation: bob 4.6s ease-in-out infinite; will-change: transform;
+  }
+  @keyframes bob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  @media (prefers-reduced-motion: reduce) { h1 { animation: none; } }
+
+  #status { min-height: 1.2em; font-size: 0.7rem; color: #8ea0d0; text-align: center; }
+  #status.win { color: #39d98a; text-shadow: 0 0 10px rgba(57,217,138,0.7); }
+  #status.lose { color: #ff5c5c; text-shadow: 0 0 10px rgba(255,90,90,0.7); }
+  #status.draw { color: #ffd23f; text-shadow: 0 0 10px rgba(255,210,63,0.7); }
+
+  /* difficulty selector */
+  .diff { display: flex; gap: 8px; }
+  .diff button {
+    font-family: inherit; font-size: 0.5rem; letter-spacing: 1px; cursor: pointer;
+    padding: 8px 12px; border-radius: 8px; color: #aab8e0;
+    background: rgba(0,0,20,0.5); border: 1.5px solid rgba(120,160,255,0.35);
+    transition: box-shadow .15s, color .15s;
+  }
+  .diff button:hover { color: #eaf0ff; }
+  .diff button.sel { color: #04121a; background: #36e2ff; border-color: #36e2ff; box-shadow: 0 0 14px rgba(54,226,255,0.6); }
+
+  /* board */
+  .board {
+    display: grid; grid-template-columns: repeat(3, 96px); grid-template-rows: repeat(3, 96px);
+    gap: 10px; padding: 14px; border-radius: 16px;
+    background: rgba(0,0,16,0.5);
+    box-shadow: 0 0 26px rgba(60,120,255,0.25), inset 0 0 26px rgba(40,80,200,0.12);
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    font-family: inherit; font-size: 2.2rem; cursor: pointer;
+    color: #eaf0ff; background: rgba(10,16,36,0.7);
+    border: 2px solid rgba(120,160,255,0.3); border-radius: 12px;
+    transition: box-shadow .15s, background .15s, transform .06s;
+  }
+  .cell:hover:not(.taken) { background: rgba(30,44,90,0.7); box-shadow: 0 0 14px rgba(90,150,255,0.5); }
+  .cell.x { color: #36e2ff; text-shadow: 0 0 14px rgba(54,226,255,0.9); }
+  .cell.o { color: #ff7fd0; text-shadow: 0 0 14px rgba(255,127,208,0.9); }
+  .cell.taken { cursor: default; }
+  .cell.win { background: rgba(57,217,138,0.18); border-color: #39d98a; box-shadow: 0 0 18px rgba(57,217,138,0.7); }
+  .board.locked .cell:not(.taken) { cursor: default; }
+
+  /* scoreboard */
+  .score { display: flex; gap: 22px; font-size: 0.55rem; }
+  .score div { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #8ea0d0; }
+  .score .v { font-size: 0.95rem; }
+  .score .you .v { color: #36e2ff; text-shadow: 0 0 8px rgba(54,226,255,0.7); }
+  .score .draws .v { color: #ffd23f; text-shadow: 0 0 8px rgba(255,210,63,0.7); }
+  .score .ai .v { color: #ff7fd0; text-shadow: 0 0 8px rgba(255,127,208,0.7); }
+
+  .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  .btn {
+    font-family: inherit; font-size: 0.62rem; letter-spacing: 1px; cursor: pointer;
+    padding: 12px 18px; border-radius: 10px; color: #dffff0;
+    background: rgba(0,0,20,0.6); border: 2px solid #39d98a;
+    text-shadow: 0 0 8px rgba(57,217,138,0.8);
+    box-shadow: 0 0 14px rgba(57,217,138,0.35);
+    transition: transform .08s, box-shadow .2s;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 0 24px rgba(57,217,138,0.7); }
+  .btn.home { border-color: #6b78a0; color: #aab8e0; text-shadow: none; box-shadow: 0 0 10px rgba(100,120,180,0.3); text-decoration: none; display: inline-flex; align-items: center; }
+</style>
+</head>
+<body>
+  <canvas id="stars"></canvas>
+  <div class="content">
+    <h1>TIC-TAC-TOE</h1>
+    <div id="status">YOUR TURN — YOU ARE X</div>
+
+    <div class="diff" id="diff">
+      <button data-d="easy" type="button">EASY</button>
+      <button data-d="medium" type="button">MEDIUM</button>
+      <button data-d="hard" type="button">HARD</button>
+    </div>
+
+    <div class="board" id="board"></div>
+
+    <div class="score">
+      <div class="you"><span>YOU</span><span class="v" id="scoreYou">0</span></div>
+      <div class="draws"><span>DRAWS</span><span class="v" id="scoreDraw">0</span></div>
+      <div class="ai"><span>AI</span><span class="v" id="scoreAi">0</span></div>
+    </div>
+
+    <div class="row">
+      <button class="btn" id="newGame" type="button">NEW GAME</button>
+      <a class="btn home" href="index.html">← ALL GAMES</a>
+    </div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- Elements ----
+  const boardEl = document.getElementById("board");
+  const statusEl = document.getElementById("status");
+  const diffEl = document.getElementById("diff");
+  const newGameBtn = document.getElementById("newGame");
+  const scoreYouEl = document.getElementById("scoreYou");
+  const scoreDrawEl = document.getElementById("scoreDraw");
+  const scoreAiEl = document.getElementById("scoreAi");
+
+  const HUMAN = "X", AI = "O";
+  const LINES = [
+    [0,1,2],[3,4,5],[6,7,8],   // rows
+    [0,3,6],[1,4,7],[2,5,8],   // cols
+    [0,4,8],[2,4,6],           // diagonals
+  ];
+
+  // ---- State ----
+  let board = Array(9).fill("");
+  let busy = false;            // true while the AI is "thinking" or the game is over
+  let difficulty = loadDiff();
+  let score = loadScore();
+
+  // ---- Persistence ----
+  function loadDiff() { try { return localStorage.getItem("tttDiff") || "medium"; } catch (e) { return "medium"; } }
+  function saveDiff(d) { try { localStorage.setItem("tttDiff", d); } catch (e) {} }
+  function loadScore() {
+    try { const s = JSON.parse(localStorage.getItem("tttScore") || "{}"); return { you: s.you|0, draw: s.draw|0, ai: s.ai|0 }; }
+    catch (e) { return { you: 0, draw: 0, ai: 0 }; }
+  }
+  function saveScore() { try { localStorage.setItem("tttScore", JSON.stringify(score)); } catch (e) {} }
+  function renderScore() { scoreYouEl.textContent = score.you; scoreDrawEl.textContent = score.draw; scoreAiEl.textContent = score.ai; }
+
+  // ---- Board rendering ----
+  function buildBoard() {
+    boardEl.innerHTML = "";
+    for (let i = 0; i < 9; i++) {
+      const c = document.createElement("button");
+      c.className = "cell";
+      c.type = "button";
+      c.dataset.i = i;
+      c.addEventListener("click", () => onCellClick(i));
+      boardEl.appendChild(c);
+    }
+  }
+  function renderBoard(winLine) {
+    const cells = boardEl.children;
+    for (let i = 0; i < 9; i++) {
+      const c = cells[i];
+      c.textContent = board[i];
+      c.className = "cell" + (board[i] === "X" ? " x taken" : board[i] === "O" ? " o taken" : "");
+    }
+    if (winLine) for (const i of winLine) cells[i].classList.add("win");
+    boardEl.classList.toggle("locked", busy);
+  }
+
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = cls || ""; }
+
+  // ---- Win / draw logic ----
+  function winnerInfo(b) {
+    for (const line of LINES) {
+      const [a, c, d] = line;
+      if (b[a] && b[a] === b[c] && b[a] === b[d]) return { who: b[a], line };
+    }
+    return null;
+  }
+  function emptyIndices(b) { const r = []; for (let i = 0; i < 9; i++) if (!b[i]) r.push(i); return r; }
+  const rand = (arr) => arr[(Math.random() * arr.length) | 0];
+
+  // ---- Turn handling ----
+  function onCellClick(i) {
+    if (busy || board[i]) return;
+    board[i] = HUMAN;
+    if (afterMove()) return;       // game ended on the human's move
+    busy = true;
+    renderBoard();
+    setStatus("AI THINKING…");
+    setTimeout(aiTurn, 380);       // small delay so it feels deliberate
+  }
+
+  function aiTurn() {
+    const i = chooseAiMove();
+    if (i != null) board[i] = AI;
+    busy = false;
+    afterMove();
+  }
+
+  // Apply end-of-game checks + status. Returns true if the game is over.
+  function afterMove() {
+    const info = winnerInfo(board);
+    if (info) {
+      busy = true;
+      renderBoard(info.line);
+      if (info.who === HUMAN) { score.you++; setStatus("YOU WIN! 🎉", "win"); }
+      else { score.ai++; setStatus("AI WINS!", "lose"); }
+      saveScore(); renderScore();
+      return true;
+    }
+    if (emptyIndices(board).length === 0) {
+      busy = true;
+      renderBoard();
+      score.draw++; setStatus("DRAW", "draw");
+      saveScore(); renderScore();
+      return true;
+    }
+    renderBoard();
+    if (!busy) setStatus("YOUR TURN — YOU ARE X");
+    return false;
+  }
+
+  // ---- AI ----
+  function chooseAiMove() {
+    const avail = emptyIndices(board);
+    if (!avail.length) return null;
+    if (difficulty === "easy") return rand(avail);
+    if (difficulty === "medium") return mediumMove();
+    return minimax(board.slice(), AI).idx;   // hard
+  }
+
+  // win if you can, else block, else center, else corner, else random
+  function findWinning(b, p) {
+    for (const i of emptyIndices(b)) {
+      b[i] = p; const w = winnerInfo(b); b[i] = "";
+      if (w && w.who === p) return i;
+    }
+    return null;
+  }
+  function mediumMove() {
+    const b = board.slice();
+    let m = findWinning(b, AI); if (m != null) return m;
+    m = findWinning(b, HUMAN); if (m != null) return m;
+    if (!b[4]) return 4;
+    const corners = [0, 2, 6, 8].filter(i => !b[i]);
+    if (corners.length) return rand(corners);
+    return rand(emptyIndices(b));
+  }
+
+  // minimax — AI (O) maximizes, human (X) minimizes; +depth keeps it preferring quick wins
+  function minimax(b, player, depth = 0) {
+    const info = winnerInfo(b);
+    if (info && info.who === AI) return { score: 10 - depth };
+    if (info && info.who === HUMAN) return { score: depth - 10 };
+    const avail = emptyIndices(b);
+    if (!avail.length) return { score: 0 };
+
+    let best = player === AI ? { score: -Infinity } : { score: Infinity };
+    for (const i of avail) {
+      b[i] = player;
+      const res = minimax(b, player === AI ? HUMAN : AI, depth + 1);
+      b[i] = "";
+      if (player === AI) { if (res.score > best.score) best = { score: res.score, idx: i }; }
+      else { if (res.score < best.score) best = { score: res.score, idx: i }; }
+    }
+    return best;
+  }
+
+  // ---- New game / difficulty ----
+  function newGame() {
+    board = Array(9).fill("");
+    busy = false;
+    renderBoard();
+    setStatus("YOUR TURN — YOU ARE X");
+  }
+  function selectDiff(d) {
+    difficulty = d; saveDiff(d);
+    for (const b of diffEl.children) b.classList.toggle("sel", b.dataset.d === d);
+    newGame();   // difficulty change starts a fresh game
+  }
+
+  diffEl.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-d]");
+    if (btn) selectDiff(btn.dataset.d);
+  });
+  newGameBtn.addEventListener("click", newGame);
+
+  // ---- Starfield (shared arcade look) ----
+  const starCanvas = document.getElementById("stars");
+  const sctx = starCanvas.getContext("2d");
+  const ROT_SPEED = 0.00028;
+  let stars = [], scx = 0, scy = 0, rot = 0;
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  function initStars() {
+    const w = window.innerWidth, h = window.innerHeight;
+    starCanvas.width = w; starCanvas.height = h;
+    scx = w / 2; scy = h / 2;
+    const maxR = Math.hypot(w, h) / 2 * 1.15;
+    const n = Math.min(520, Math.floor(w * h / 4500));
+    stars = [];
+    for (let i = 0; i < n; i++) {
+      stars.push({
+        ang: Math.random() * Math.PI * 2, rad: Math.sqrt(Math.random()) * maxR,
+        size: Math.random() * 1.3 + 0.3, base: Math.random() * 0.55 + 0.45,
+        tw: Math.random() * Math.PI * 2, tws: Math.random() * 0.003 + 0.001, glow: Math.random() < 0.05,
+      });
+    }
+  }
+  function paintStars(t) {
+    const w = starCanvas.width, h = starCanvas.height;
+    sctx.clearRect(0, 0, w, h);
+    rot += ROT_SPEED;
+    for (const s of stars) {
+      const a = s.ang + rot;
+      const x = scx + s.rad * Math.cos(a), y = scy + s.rad * Math.sin(a);
+      if (x < -6 || x > w + 6 || y < -6 || y > h + 6) continue;
+      sctx.globalAlpha = clamp(s.base * (0.55 + 0.45 * Math.sin(t * s.tws + s.tw)), 0, 1);
+      if (s.glow) {
+        sctx.save(); sctx.shadowColor = "#cfe3ff"; sctx.shadowBlur = 8; sctx.fillStyle = "#eaf2ff";
+        sctx.beginPath(); sctx.arc(x, y, s.size + 0.8, 0, Math.PI * 2); sctx.fill(); sctx.restore();
+      } else {
+        sctx.fillStyle = "#ffffff";
+        sctx.beginPath(); sctx.arc(x, y, s.size, 0, Math.PI * 2); sctx.fill();
+      }
+    }
+    sctx.globalAlpha = 1;
+  }
+  function loop(t) { paintStars(t); requestAnimationFrame(loop); }
+  window.addEventListener("resize", () => { initStars(); paintStars(0); });
+
+  // ---- Init ----
+  initStars(); paintStars(0); requestAnimationFrame(loop);
+  buildBoard();
+  for (const b of diffEl.children) b.classList.toggle("sel", b.dataset.d === difficulty);
+  renderScore();
+  newGame();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Cursor Maze</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+<style>
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: #000010;
+    color: #eaf0ff;
+    font-family: "Press Start 2P", ui-monospace, monospace;
+    overflow: auto;
+  }
+  /* full-screen live starfield, painted behind everything */
+  #stars {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    pointer-events: none;
+  }
+  .content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 14px;
+    padding: 20px 18px;
+    min-height: 100vh;
+  }
+  .content.center-menu { justify-content: center; }
+  h1 {
+    margin: 0;
+    font-size: 1.05rem;
+    line-height: 1.5;
+    color: #bcd0ff;
+    text-shadow: 0 0 10px rgba(120,160,255,0.7), 0 0 22px rgba(80,120,255,0.4);
+    animation: floatShip 4.6s ease-in-out infinite;
+    will-change: transform;
+  }
+  #status {
+    min-height: 1.2em;
+    font-size: 0.6rem;
+    line-height: 1.6;
+    color: #8ea0d0;
+    text-align: center;
+    animation: bobShip 3.9s ease-in-out infinite;
+    will-change: transform;
+  }
+  /* gentle "boat riding the swell" motion: rise/fall + a slow rock */
+  @keyframes floatShip {
+    0%   { transform: translateY(0); }
+    50%  { transform: translateY(-9px); }
+    100% { transform: translateY(0); }
+  }
+  @keyframes bobShip {
+    0%   { transform: translateY(0); }
+    50%  { transform: translateY(-5px); }
+    100% { transform: translateY(0); }
+  }
+
+  /* ---- Arcade menu ---- */
+  .menu-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 28px;
+    padding: 34px 10px 16px;
+  }
+  .menu-view { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+  .menu-view[hidden] { display: none; }
+  .arcade-btn {
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 1px;
+    font-size: 0.85rem;
+    padding: 16px 26px;
+    min-width: 240px;
+    color: #eaf0ff;
+    background: rgba(0,0,20,0.6);
+    border: 2px solid #36e2ff;
+    border-radius: 10px;
+    text-shadow: 0 0 8px rgba(54,226,255,0.8);
+    box-shadow: 0 0 14px rgba(54,226,255,0.35), inset 0 0 14px rgba(54,226,255,0.12);
+    transition: transform .08s ease, box-shadow .2s ease, filter .2s ease;
+  }
+  .arcade-btn:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 0 26px rgba(54,226,255,0.75), inset 0 0 18px rgba(54,226,255,0.22); }
+  .arcade-btn:active { transform: translateY(0) scale(0.99); }
+  .arcade-btn.play {
+    border-color: #39d98a; color: #dffff0;
+    text-shadow: 0 0 8px rgba(57,217,138,0.9);
+    animation: pulseGreen 1.8s ease-in-out infinite;
+  }
+  @keyframes pulseGreen {
+    0%,100% { box-shadow: 0 0 16px rgba(57,217,138,0.35), inset 0 0 14px rgba(57,217,138,0.12); }
+    50%     { box-shadow: 0 0 30px rgba(57,217,138,0.8),  inset 0 0 20px rgba(57,217,138,0.24); }
+  }
+  .arcade-btn.levels {
+    border-color: #b18cff; color: #efe6ff;
+    text-shadow: 0 0 8px rgba(177,140,255,0.9);
+    box-shadow: 0 0 14px rgba(150,110,255,0.4), inset 0 0 14px rgba(150,110,255,0.14);
+  }
+  .arcade-btn.levels:hover { box-shadow: 0 0 26px rgba(177,140,255,0.75), inset 0 0 18px rgba(150,110,255,0.22); }
+  .arcade-btn.gold {
+    border-color: #ffd23f; color: #fff3c0;
+    text-shadow: 0 0 8px rgba(255,210,63,0.9);
+    box-shadow: 0 0 14px rgba(255,210,63,0.35), inset 0 0 14px rgba(255,210,63,0.12);
+  }
+  .arcade-btn.gold:hover { box-shadow: 0 0 26px rgba(255,210,63,0.75), inset 0 0 18px rgba(255,210,63,0.2); }
+  .arcade-btn.pink {
+    border-color: #ff7fd0; color: #ffe0f2;
+    text-shadow: 0 0 8px rgba(255,127,208,0.9);
+    box-shadow: 0 0 14px rgba(255,127,208,0.35), inset 0 0 14px rgba(255,127,208,0.12);
+  }
+  .arcade-btn.pink:hover { box-shadow: 0 0 26px rgba(255,127,208,0.75), inset 0 0 18px rgba(255,127,208,0.2); }
+  /* high-scores menu view */
+  .hs-title { font-size: 0.85rem; color: #ffd23f; text-shadow: 0 0 12px rgba(255,210,63,0.7); }
+  .hs-boards { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .hs-block {
+    background: rgba(0,0,16,0.55);
+    border: 2px solid rgba(120,160,255,0.35);
+    border-radius: 12px; padding: 12px 14px; min-width: 210px;
+    box-shadow: 0 0 16px rgba(60,120,255,0.18), inset 0 0 16px rgba(40,80,200,0.1);
+  }
+  .hs-head { font-size: 0.55rem; color: #8ea0d0; margin-bottom: 8px; text-align: center; letter-spacing: 1px; }
+  .hs-block .scores li { font-size: 0.5rem; }
+  .arcade-btn.back {
+    border-color: #6b78a0; color: #aab8e0; text-shadow: none;
+    box-shadow: 0 0 10px rgba(100,120,180,0.3);
+    font-size: 0.7rem; min-width: 170px; padding: 12px 18px;
+  }
+  .levels-grid { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .level-card {
+    font-family: inherit; cursor: pointer; width: 156px; padding: 18px 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    color: #eaf0ff; background: rgba(0,0,20,0.6);
+    border: 2px solid #36e2ff; border-radius: 12px;
+    box-shadow: 0 0 16px rgba(54,226,255,0.3), inset 0 0 16px rgba(54,226,255,0.1);
+    transition: transform .08s ease, box-shadow .2s ease;
+  }
+  .level-card:hover:not(.locked) { transform: translateY(-3px); box-shadow: 0 0 28px rgba(54,226,255,0.75); }
+  .level-card .card-num { font-size: 0.7rem; color: #36e2ff; text-shadow: 0 0 8px rgba(54,226,255,0.8); }
+  .level-card .card-size { font-size: 1rem; }
+  .level-card .card-grid { font-size: 0.5rem; color: #8ea0d0; }
+  .level-card .card-best { font-size: 0.45rem; color: #ffd23f; min-height: 0.8em; }
+  .level-card .card-state { font-size: 0.5rem; color: #39d98a; margin-top: 2px; }
+  .level-card.locked {
+    border-color: #384058; box-shadow: none; cursor: not-allowed;
+    opacity: 0.6; filter: grayscale(0.4);
+  }
+  .level-card.locked .card-num, .level-card.locked .card-state { color: #5d6a92; }
+
+  @media (prefers-reduced-motion: reduce) {
+    h1, #status, .arcade-btn.play { animation: none; }
+  }
+
+  .play-area {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 18px;
+  }
+  .stage {
+    position: relative;
+    border-radius: 10px;
+  }
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 6px;
+  }
+  .panel {
+    min-width: 212px;
+    padding: 14px 14px 16px;
+    border-radius: 12px;
+    background: rgba(0,0,16,0.55);
+    border: 2px solid rgba(120,160,255,0.35);
+    box-shadow: 0 0 18px rgba(60,120,255,0.18), inset 0 0 18px rgba(40,80,200,0.12);
+    text-align: center;
+  }
+  .panel-label {
+    font-size: 0.55rem;
+    color: #8ea0d0;
+    letter-spacing: 1px;
+    margin-bottom: 10px;
+  }
+  .panel-value {
+    font-size: 0.95rem;
+    color: #36e2ff;
+    text-shadow: 0 0 10px rgba(54,226,255,0.7);
+  }
+  .panel-sub { font-size: 0.5rem; color: #8ea0d0; margin-top: 7px; }
+  .scores {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    text-align: left;
+  }
+  .scores li {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 0.55rem;
+    line-height: 2.1;
+    color: #aab8e0;
+  }
+  .scores li .rank { color: #5d6a92; flex: 0 0 1.3em; }
+  .scores li .nm { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scores li .t { flex: 0 0 auto; color: #cdd8f5; }
+  .scores li:first-child .t { color: #ffd23f; text-shadow: 0 0 8px rgba(255,210,63,0.6); }
+  .scores li.me .nm, .scores li.me .t { color: #39d98a; text-shadow: 0 0 8px rgba(57,217,138,0.6); }
+  .scores li.empty { justify-content: center; color: #5d6a92; }
+  /* champion: #1 name gets a shimmering gold gradient + outline + glow (wins over .me) */
+  .scores li:first-child .nm {
+    background: linear-gradient(100deg, #fff3b0 0%, #ffd23f 22%, #fffbe6 50%, #ffd23f 78%, #fff3b0 100%);
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    -webkit-text-stroke: 0.5px rgba(140,90,0,0.55);
+    filter: drop-shadow(0 0 4px rgba(255,200,40,0.9));
+    animation: shimmer 2.4s linear infinite;
+  }
+  @keyframes shimmer {
+    0%   { background-position: 0% center; }
+    100% { background-position: 220% center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .scores li:first-child .nm { animation: none; }
+  }
+  .you { margin-top: 12px; font-size: 0.5rem; color: #8ea0d0; text-align: center; min-height: 1em; }
+  .you .rk { color: #ffd23f; }
+  .panel-btns { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 12px; }
+  .mini-btn {
+    font-family: inherit; font-size: 0.45rem; letter-spacing: 1px; cursor: pointer;
+    padding: 8px 10px; border-radius: 8px; color: #aab8e0;
+    background: rgba(0,0,20,0.5); border: 1.5px solid rgba(120,160,255,0.4);
+    box-shadow: 0 0 8px rgba(60,120,255,0.2);
+    transition: box-shadow .15s ease, color .15s ease, transform .08s ease;
+  }
+  .mini-btn:hover { color: #eaf0ff; box-shadow: 0 0 14px rgba(90,150,255,0.55); }
+  .mini-btn:active { transform: translateY(1px); }
+  /* username modal */
+  .name-box {
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+    padding: 24px 26px; border-radius: 14px;
+    background: rgba(0,0,12,0.94);
+    border: 2px solid rgba(120,160,255,0.5);
+    box-shadow: 0 8px 50px rgba(0,0,0,0.7);
+  }
+  .name-title { color: #39d98a; font-size: 0.9rem; text-shadow: 0 0 12px rgba(60,220,140,0.6); }
+  .name-sub { color: #9fb0d8; font-size: 0.5rem; line-height: 1.9; text-align: center; }
+  #nameInput {
+    font-family: inherit; font-size: 0.8rem; text-align: center; text-transform: uppercase;
+    width: 180px; padding: 11px; color: #36e2ff; background: #05070f;
+    border: 2px solid rgba(54,226,255,0.5); border-radius: 8px; outline: none;
+  }
+  #nameInput:focus { border-color: #36e2ff; box-shadow: 0 0 12px rgba(54,226,255,0.5); }
+  .name-box button {
+    font-family: inherit; font-size: 0.6rem; cursor: pointer; letter-spacing: 1px;
+    padding: 11px 16px; color: #04121a; background: #36e2ff; border: none; border-radius: 8px;
+  }
+  .name-box button:hover { filter: brightness(1.1); }
+  /* level-complete modal */
+  .lc-box {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    padding: 26px 30px; border-radius: 14px;
+    background: rgba(0,0,12,0.93);
+    border: 2px solid rgba(57,217,138,0.6);
+    box-shadow: 0 8px 50px rgba(0,0,0,0.7), 0 0 26px rgba(57,217,138,0.3);
+  }
+  .lc-title { color: #39d98a; font-size: 0.95rem; line-height: 1.5; text-align: center; text-shadow: 0 0 12px rgba(60,220,140,0.7); }
+  .lc-time { color: #36e2ff; font-size: 1.3rem; text-shadow: 0 0 10px rgba(54,226,255,0.7); }
+  .lc-sub { color: #ffd23f; font-size: 0.6rem; min-height: 0.8em; text-shadow: 0 0 8px rgba(255,210,63,0.6); }
+  .lc-buttons { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+  .lc-buttons .arcade-btn { min-width: 210px; font-size: 0.62rem; padding: 12px 16px; }
+  #maze {
+    display: block;
+    border-radius: 8px;
+    background: transparent;
+  }
+  #powerHud {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    font-family: "Press Start 2P", ui-monospace, monospace;
+    font-size: 0.7rem; letter-spacing: 1px;
+    color: #04121a; background: #ffd23f;
+    padding: 7px 14px; border-radius: 999px;
+    box-shadow: 0 0 18px rgba(255,210,63,0.85);
+    display: none; z-index: 5; pointer-events: none; white-space: nowrap;
+    animation: hudPulse 0.6s ease-in-out infinite alternate;
+  }
+  #powerHud.show { display: block; }
+  @keyframes hudPulse {
+    from { box-shadow: 0 0 12px rgba(255,210,63,0.6); }
+    to   { box-shadow: 0 0 28px rgba(255,210,63,1); }
+  }
+  @media (prefers-reduced-motion: reduce) { #powerHud { animation: none; } }
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+  }
+  .overlay.show { display: flex; background: rgba(0,0,5,0.55); }
+  .overlay.click { cursor: pointer; }
+  .overlay-msg {
+    font-family: "Press Start 2P", ui-monospace, monospace;
+    font-size: 1.1rem;
+    line-height: 1.6;
+    padding: 18px 26px;
+    border-radius: 12px;
+    background: rgba(0,0,10,0.72);
+    border: 2px solid rgba(255,255,255,0.18);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+    text-align: center;
+  }
+  .overlay.over  .overlay-msg { color: #ff5c5c; text-shadow: 0 0 12px rgba(255,80,80,0.7); }
+  .overlay.win   .overlay-msg { color: #39d98a; text-shadow: 0 0 12px rgba(60,220,140,0.7); }
+  .overlay.prompt .overlay-msg { color: #eaf0ff; font-size: 0.8rem; }
+  .hint { font-size: 0.5rem; line-height: 1.7; color: #5d6a92; text-align: center; max-width: 90vw; }
+</style>
+</head>
+<body>
+  <canvas id="stars"></canvas>
+  <div class="content">
+    <h1>🌌 CURSOR MAZE</h1>
+
+    <!-- ===== MENU ===== -->
+    <div id="menuScreen" class="menu-screen">
+      <div id="menuMain" class="menu-view">
+        <button id="playBtn" class="arcade-btn play" type="button">▶ PLAY</button>
+        <button id="levelsBtn" class="arcade-btn levels" type="button">LEVELS</button>
+        <button id="highscoresBtn" class="arcade-btn gold" type="button">HIGH SCORES</button>
+        <button id="creditsBtn" class="arcade-btn pink" type="button">CREDITS</button>
+        <a href="index.html" class="arcade-btn back" style="text-decoration:none;">← ALL GAMES</a>
+      </div>
+      <div id="levelSelect" class="menu-view" hidden>
+        <div id="levelsGrid" class="levels-grid"></div>
+        <button id="levelsBack" class="arcade-btn back" type="button">← BACK</button>
+      </div>
+      <div id="highscoresView" class="menu-view" hidden>
+        <div class="hs-title">HIGH SCORES</div>
+        <div id="hsBoards" class="hs-boards"></div>
+        <button id="hsBack" class="arcade-btn back" type="button">← BACK</button>
+      </div>
+    </div>
+
+    <!-- ===== GAME ===== -->
+    <div id="status">CLICK THE MAZE TO BEGIN</div>
+    <div class="play-area">
+      <div class="stage">
+        <canvas id="maze"></canvas>
+        <div id="powerHud"></div>
+        <div id="overlay" class="overlay"><div id="overlayMsg" class="overlay-msg"></div></div>
+        <div id="nameModal" class="overlay">
+          <form id="nameForm" class="name-box">
+            <div class="name-title">YOU SOLVED IT!</div>
+            <div class="name-sub">ENTER A NAME FOR<br />THE GLOBAL LEADERBOARD</div>
+            <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="AAA" />
+            <button type="submit">SAVE &amp; CONTINUE</button>
+          </form>
+        </div>
+        <div id="levelComplete" class="overlay">
+          <div class="lc-box">
+            <div id="lcTitle" class="lc-title">LEVEL 1 COMPLETE</div>
+            <div id="lcTime" class="lc-time">0:00.00</div>
+            <div id="lcSub" class="lc-sub"></div>
+            <div class="lc-buttons">
+              <button id="lcNext" class="arcade-btn play" type="button">NEXT LEVEL ▶</button>
+              <button id="lcReplay" class="arcade-btn" type="button">REPLAY</button>
+              <button id="lcMenu" class="arcade-btn back" type="button">MENU</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar">
+        <div class="panel">
+          <div class="panel-label">LEVEL</div>
+          <div id="levelVal" class="panel-value">1 / 3</div>
+          <div id="levelSize" class="panel-sub">SMALL</div>
+        </div>
+        <div class="panel">
+          <div class="panel-label">TIME</div>
+          <div id="timer" class="panel-value">0:00.00</div>
+        </div>
+        <div class="panel">
+          <div id="boardLabel" class="panel-label">LEVEL 1 — TOP</div>
+          <ol id="scores" class="scores"><li class="empty">— — —</li></ol>
+          <div id="you" class="you"></div>
+          <div class="panel-btns">
+            <button id="changeName" class="mini-btn" type="button">CHANGE NAME</button>
+            <button id="toMenu" class="mini-btn" type="button">MENU</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hint" id="hint">GUIDE THE DOT FROM START TO EXIT &nbsp;•&nbsp; ESC RELEASES THE CURSOR</div>
+  </div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---- Levels (size-based) ----
+  const LEVELS = [
+    { n: 1, cols: 9,  rows: 9,  label: "SMALL",  power: 0 },
+    { n: 2, cols: 12, rows: 12, label: "MEDIUM", power: 1 },
+    { n: 3, cols: 15, rows: 15, label: "LARGE",  power: 2 },
+  ];
+  const MAX_LEVEL = LEVELS.length;
+  const levelDef = (n) => LEVELS[n - 1];
+
+  // ---- Config ----
+  let COLS = 15;           // set per level by loadLevel()
+  let ROWS = 15;
+  const CELL = 40;
+  const WALL_W = 4;
+  const GUTTER_X = 84;     // left/right outer lane + label space
+  const PAD_Y = 42;        // top/bottom outer lane (room to travel around the maze)
+  const TOL = 5;           // collision tolerance (px)
+  const CURSOR_R = 5;
+  const TORCH_R = 92;      // torch radius — inner walls are only visible within this of the dot
+  const POWER_MS = 4000;   // a power-up fully lights the maze for this long
+  const COLLECT_R = 38;    // how close the dot must get to grab a power-up
+  const TAIL_LEN = 16;     // number of trailing points behind the dot
+  const POPUP_MS = 900;
+  const ROT_SPEED = 0.00028; // starfield rotation, radians/frame
+
+  const COL_WALL = "#ffffff";
+  const COL_START = "#39d98a";
+  const COL_EXIT = "#ffd23f";
+  const COL_CURSOR = "#36e2ff";
+  const LABEL_FONT = "10px 'Press Start 2P', ui-monospace, monospace";
+
+  // ---- Global leaderboard (Supabase) ----
+  const SUPABASE_URL = "https://vzjhlbmdmzzrrtouczys.supabase.co";
+  const SUPABASE_ANON_KEY = "sb_publishable_L7SMnk4FpvSYXTtAvK5OOw_DFmBQI5l";
+  const SUPABASE_TABLE = "scores";
+  const BOARD_MAX = 10;
+  const RANK_SCAN_MAX = 2000;     // how many rows to scan to compute your global rank
+  const USER_KEY = "cursorMazeUser";
+  const PB_KEY = "cursorMazePB";          // per-level: PB_KEY + "_" + level
+  const LOCAL_BOARD_KEY = "cursorMazeLocalBoard"; // per-level: + "_" + level
+  const UNLOCKED_KEY = "cursorMazeUnlocked";
+  const hasBackend = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
+  let W = COLS * CELL + GUTTER_X * 2;   // recomputed per level
+  let H = ROWS * CELL + PAD_Y * 2;
+
+  // ---- Elements ----
+  const canvas = document.getElementById("maze");
+  const ctx = canvas.getContext("2d");
+  const starCanvas = document.getElementById("stars");
+  const sctx = starCanvas.getContext("2d");
+  const lightCanvas = document.createElement("canvas");  // offscreen layer for torch-masked inner walls
+  const lctx = lightCanvas.getContext("2d");
+  const statusEl = document.getElementById("status");
+  const hintEl = document.getElementById("hint");
+  const playEl = document.querySelector(".play-area");
+  const overlayEl = document.getElementById("overlay");
+  const overlayMsgEl = document.getElementById("overlayMsg");
+  const timerEl = document.getElementById("timer");
+  const powerHud = document.getElementById("powerHud");
+  const scoresEl = document.getElementById("scores");
+  const boardLabelEl = document.getElementById("boardLabel");
+  const youEl = document.getElementById("you");
+  const nameModal = document.getElementById("nameModal");
+  const nameForm = document.getElementById("nameForm");
+  const nameInput = document.getElementById("nameInput");
+  const nameTitleEl = nameModal.querySelector(".name-title");
+  const nameSubEl = nameModal.querySelector(".name-sub");
+  const changeNameBtn = document.getElementById("changeName");
+  const toMenuBtn = document.getElementById("toMenu");
+  const levelValEl = document.getElementById("levelVal");
+  const levelSizeEl = document.getElementById("levelSize");
+  // menu
+  const menuScreen = document.getElementById("menuScreen");
+  const menuMain = document.getElementById("menuMain");
+  const levelSelect = document.getElementById("levelSelect");
+  const levelsGrid = document.getElementById("levelsGrid");
+  const playBtn = document.getElementById("playBtn");
+  const levelsBtn = document.getElementById("levelsBtn");
+  const levelsBack = document.getElementById("levelsBack");
+  const highscoresBtn = document.getElementById("highscoresBtn");
+  const creditsBtn = document.getElementById("creditsBtn");
+  const highscoresView = document.getElementById("highscoresView");
+  const hsBoards = document.getElementById("hsBoards");
+  const hsBack = document.getElementById("hsBack");
+  const contentEl = document.querySelector(".content");
+  const CREDITS_URL = "https://youtu.be/dQw4w9WgXcQ";
+  // level complete
+  const levelComplete = document.getElementById("levelComplete");
+  const lcTitleEl = document.getElementById("lcTitle");
+  const lcTimeEl = document.getElementById("lcTime");
+  const lcSubEl = document.getElementById("lcSub");
+  const lcNextBtn = document.getElementById("lcNext");
+  const lcReplayBtn = document.getElementById("lcReplay");
+  const lcMenuBtn = document.getElementById("lcMenu");
+
+  // ---- State ----
+  // "menu" | "prompt" | "playing" | "over" | "win" | "naming" | "levelcomplete"
+  let state = "menu";
+  let currentLevel = 1;
+  let grid = [];
+  let segments = [];       // all walls (used for collision)
+  let innerSegs = [];      // walls revealed only by the torch
+  let boundarySegs = [];   // outer boundary — always visible
+  let powerups = [];       // light power-ups inside the maze
+  let powerLitUntil = 0;   // performance.now() until which the whole maze stays lit
+  let powerTimer = null;
+  let powerHudInterval = null;
+  let startZone = null;
+  let exitZone = null;
+  let curX = 0, curY = 0;
+  let timer = null;
+  let trail = [];                  // recent dot positions, for the comet tail
+  let pendingScoreMs = 0;          // a finish time waiting for a username on first completion
+  let myRank = null;               // current player's rank on the current level (null = none)
+  let nameMode = "firstwin";       // "firstwin" (after first solve) | "change" (manual rename)
+
+  // run timer
+  let timerRunning = false;
+  let timerStartTs = 0;
+  let timerFrozenMs = 0;
+  let timerInterval = null;
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  // ---- Progress / unlock persistence ----
+  function loadUnlocked() {
+    try { const v = Number(localStorage.getItem(UNLOCKED_KEY)); return v >= 1 && v <= MAX_LEVEL ? v : 1; }
+    catch (e) { return 1; }
+  }
+  function saveUnlocked(n) { try { localStorage.setItem(UNLOCKED_KEY, String(n)); } catch (e) {} }
+
+  // ---- Maze generation: recursive backtracker ----
+  function makeGrid() {
+    const g = [];
+    for (let r = 0; r < ROWS; r++) {
+      const row = [];
+      for (let c = 0; c < COLS; c++) {
+        row.push({ c, r, walls: { N: true, E: true, S: true, W: true }, visited: false });
+      }
+      g.push(row);
+    }
+    return g;
+  }
+
+  function carve(g) {
+    const stack = [];
+    let current = g[0][0];
+    current.visited = true;
+    let visitedCount = 1;
+    const total = COLS * ROWS;
+
+    const neighbors = (cell) => {
+      const list = [];
+      const { c, r } = cell;
+      if (r > 0)        list.push({ cell: g[r - 1][c], dir: "N", opp: "S" });
+      if (c < COLS - 1) list.push({ cell: g[r][c + 1], dir: "E", opp: "W" });
+      if (r < ROWS - 1) list.push({ cell: g[r + 1][c], dir: "S", opp: "N" });
+      if (c > 0)        list.push({ cell: g[r][c - 1], dir: "W", opp: "E" });
+      return list.filter(n => !n.cell.visited);
+    };
+
+    while (visitedCount < total) {
+      const opts = neighbors(current);
+      if (opts.length > 0) {
+        const next = opts[(Math.random() * opts.length) | 0];
+        current.walls[next.dir] = false;
+        next.cell.walls[next.opp] = false;
+        stack.push(current);
+        current = next.cell;
+        current.visited = true;
+        visitedCount++;
+      } else {
+        current = stack.pop();
+      }
+    }
+  }
+
+  function openEnds(g) {
+    g[0][0].walls.W = false;
+    g[ROWS - 1][COLS - 1].walls.E = false;
+  }
+
+  function buildSegments(g) {
+    const segs = [];
+    const x0 = GUTTER_X, y0 = PAD_Y;
+    // b = true means the segment lies on the maze's outer boundary (always visible)
+    const add = (x1, y1, x2, y2, b) => segs.push({ x1, y1, x2, y2, b: !!b });
+
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = g[r][c];
+        const px = x0 + c * CELL;
+        const py = y0 + r * CELL;
+        if (cell.walls.N) add(px, py, px + CELL, py, r === 0);
+        if (cell.walls.W) add(px, py, px, py + CELL, c === 0);
+        if (c === COLS - 1 && cell.walls.E) add(px + CELL, py, px + CELL, py + CELL, true);
+        if (r === ROWS - 1 && cell.walls.S) add(px, py + CELL, px + CELL, py + CELL, true);
+      }
+    }
+    return segs;
+  }
+
+  function newMaze() {
+    grid = makeGrid();
+    carve(grid);
+    openEnds(grid);
+    segments = buildSegments(grid);
+    boundarySegs = segments.filter(s => s.b);
+    innerSegs = segments.filter(s => !s.b);
+
+    const x0 = GUTTER_X, y0 = PAD_Y;
+    startZone = { x: x0, y: y0 + CELL / 2, r: CELL * 0.42 };
+    exitZone = { x: x0 + COLS * CELL, y: y0 + (ROWS - 1) * CELL + CELL / 2, r: CELL * 0.42 };
+    powerups = spawnPowerups(levelDef(currentLevel).power || 0);
+    powerLitUntil = 0;
+    clearTimeout(powerTimer);
+    resetCursorToStart();
+  }
+
+  function resetCursorToStart() {
+    curX = startZone.x;
+    curY = startZone.y;
+    trail = [];
+  }
+
+  // Place N power-ups at random cell centers, avoiding the start and exit cells.
+  function spawnPowerups(count) {
+    const result = [];
+    const taken = new Set(["0,0", (COLS - 1) + "," + (ROWS - 1)]);
+    let guard = 0;
+    while (result.length < count && guard < 800) {
+      guard++;
+      const c = (Math.random() * COLS) | 0;
+      const r = (Math.random() * ROWS) | 0;
+      const key = c + "," + r;
+      if (taken.has(key)) continue;
+      taken.add(key);
+      result.push({ x: GUTTER_X + (c + 0.5) * CELL, y: PAD_Y + (r + 0.5) * CELL, active: true });
+    }
+    return result;
+  }
+  // Re-arm power-ups for a fresh attempt at the same maze (after a crash).
+  function resetPowerups() {
+    for (const p of powerups) p.active = true;
+    powerLitUntil = 0;
+    clearTimeout(powerTimer);
+    hidePowerHud();
+  }
+  // Grab any power-up the dot is touching → fully light the maze for POWER_MS.
+  function collectPowerups() {
+    for (const p of powerups) {
+      if (!p.active) continue;
+      const dx = curX - p.x, dy = curY - p.y;
+      if (dx * dx + dy * dy <= COLLECT_R * COLLECT_R) {
+        p.active = false;
+        powerLitUntil = performance.now() + POWER_MS;
+        clearTimeout(powerTimer);
+        powerTimer = setTimeout(() => render(), POWER_MS + 30); // re-darken even if the player stops moving
+        startPowerHud();
+      }
+    }
+  }
+  // "LIGHTS!" badge with a live backwards counter while the maze is lit.
+  function tickPowerHud() {
+    const remMs = powerLitUntil - performance.now();
+    if (remMs <= 0) { hidePowerHud(); return; }
+    powerHud.textContent = "💡 LIGHTS! " + Math.ceil(remMs / 1000);
+    powerHud.classList.add("show");
+  }
+  function startPowerHud() {
+    clearInterval(powerHudInterval);
+    tickPowerHud();
+    powerHudInterval = setInterval(tickPowerHud, 100);
+  }
+  function hidePowerHud() {
+    clearInterval(powerHudInterval);
+    powerHud.classList.remove("show");
+  }
+
+  // Resize the canvas for a level and build a fresh maze of that size.
+  function loadLevel(n) {
+    currentLevel = n;
+    const L = levelDef(n);
+    COLS = L.cols; ROWS = L.rows;
+    W = COLS * CELL + GUTTER_X * 2;
+    H = ROWS * CELL + PAD_Y * 2;
+    canvas.width = W;
+    canvas.height = H;
+    lightCanvas.width = W;
+    lightCanvas.height = H;
+    newMaze();
+    resetTimer();
+    updateLevelPanel();
+    refreshBoard();   // per-level board
+  }
+
+  function updateLevelPanel() {
+    levelValEl.textContent = currentLevel + " / " + MAX_LEVEL;
+    levelSizeEl.textContent = levelDef(currentLevel).label;
+    boardLabelEl.textContent = "LEVEL " + currentLevel + " — TOP";
+  }
+
+  // ---- Run timer ----
+  function pad2(n) { return n < 10 ? "0" + n : "" + n; }
+  function fmtTime(ms) {
+    const cs = Math.floor(ms / 10);
+    const m = Math.floor(cs / 6000);
+    const s = Math.floor(cs / 100) % 60;
+    return m + ":" + pad2(s) + "." + pad2(cs % 100);
+  }
+  function setTimerText(ms) { timerEl.textContent = fmtTime(ms); }
+  function startTimer() {
+    if (timerRunning) return;
+    timerRunning = true;
+    timerStartTs = performance.now();
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => setTimerText(performance.now() - timerStartTs), 40);
+  }
+  function stopTimer() {
+    if (!timerRunning) return;
+    timerFrozenMs = performance.now() - timerStartTs;
+    timerRunning = false;
+    clearInterval(timerInterval);
+    setTimerText(timerFrozenMs);
+  }
+  function resetTimer() {
+    timerRunning = false;
+    clearInterval(timerInterval);
+    timerFrozenMs = 0;
+    setTimerText(0);
+  }
+
+  // ---- Username (asked once, then remembered) ----
+  function getUsername() { try { return localStorage.getItem(USER_KEY) || ""; } catch (e) { return ""; } }
+  function setUsername(n) { try { localStorage.setItem(USER_KEY, n); } catch (e) {} }
+  function sanitizeName(raw) {
+    const s = (raw || "").toUpperCase().replace(/[^A-Z0-9 _\-]/g, "").trim().slice(0, 12);
+    return s || "PLAYER";
+  }
+  function renderYou() {
+    const n = getUsername();
+    if (!n) { youEl.innerHTML = ""; return; }
+    let s = "YOU: " + escapeHtml(n);
+    if (myRank) s += ' <span class="rk">#' + myRank + "</span>";
+    youEl.innerHTML = s;
+  }
+
+  // Personal best per level (local only) — used to decide the "NEW BEST" flair.
+  function pbKey(level) { return PB_KEY + "_" + level; }
+  function personalBest(level) { try { const v = localStorage.getItem(pbKey(level)); return v === null ? null : Number(v); } catch (e) { return null; } }
+  function setPersonalBest(level, ms) {
+    const b = personalBest(level);
+    if (b === null || ms < b) { try { localStorage.setItem(pbKey(level), String(Math.round(ms))); } catch (e) {} }
+  }
+
+  // ---- Leaderboard: global via Supabase (per level), with a local fallback ----
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  }
+  function localKey(level) { return LOCAL_BOARD_KEY + "_" + level; }
+  function loadLocalBoard(level) {
+    try {
+      const raw = localStorage.getItem(localKey(level));
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter(r => r && typeof r.time_ms === "number") : [];
+    } catch (e) { return []; }
+  }
+  function saveLocalBoard(level, arr) { try { localStorage.setItem(localKey(level), JSON.stringify(arr)); } catch (e) {} }
+  function addLocalScore(name, ms, level) {
+    const b = loadLocalBoard(level);
+    b.push({ name: name, time_ms: Math.round(ms) });
+    b.sort((a, c) => a.time_ms - c.time_ms);
+    saveLocalBoard(level, b.slice(0, BOARD_MAX));
+  }
+
+  async function submitScore(name, ms, level) {
+    const time_ms = Math.round(ms);
+    if (!hasBackend()) { addLocalScore(name, time_ms, level); return; }
+    try {
+      const res = await fetch(SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE, {
+        method: "POST",
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal",
+        },
+        body: JSON.stringify({ name: name, time_ms: time_ms, level: level }),
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+    } catch (e) { addLocalScore(name, time_ms, level); } // keep locally if network/config/migration not ready
+  }
+
+  // Fetch a sorted slice of one level's scores — for the top-N board and your rank.
+  async function fetchAllScores(level) {
+    if (!hasBackend()) return loadLocalBoard(level);
+    try {
+      const url = SUPABASE_URL + "/rest/v1/" + SUPABASE_TABLE +
+        "?select=name,time_ms&level=eq." + level + "&order=time_ms.asc&limit=" + RANK_SCAN_MAX;
+      const res = await fetch(url, {
+        headers: { "apikey": SUPABASE_ANON_KEY, "Authorization": "Bearer " + SUPABASE_ANON_KEY },
+      });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      return await res.json();
+    } catch (e) { return loadLocalBoard(level); }
+  }
+
+  // Collapse to one row per name (keeping each player's best time), sorted fastest-first.
+  function dedupeBest(list) {
+    const best = new Map();
+    for (const r of list || []) {
+      if (!r || typeof r.time_ms !== "number") continue;
+      const cur = best.get(r.name);
+      if (!cur || r.time_ms < cur.time_ms) best.set(r.name, r);
+    }
+    return Array.from(best.values()).sort((a, b) => a.time_ms - b.time_ms);
+  }
+
+  // Your rank = (number of scores strictly faster than your best) + 1. null if you have none.
+  function rankOf(list, name) {
+    if (!name) return null;
+    const mine = list.filter(r => r.name === name).map(r => r.time_ms);
+    if (!mine.length) return null;
+    const best = Math.min.apply(null, mine);
+    return list.filter(r => r.time_ms < best).length + 1;
+  }
+
+  function renderBoard(list) {
+    const me = getUsername();
+    if (!list || !list.length) { scoresEl.innerHTML = '<li class="empty">— — —</li>'; return; }
+    scoresEl.innerHTML = list.slice(0, BOARD_MAX).map((row, i) => {
+      const isMe = me && row.name === me;
+      return '<li' + (isMe ? ' class="me"' : '') + '>' +
+        '<span class="rank">' + (i + 1) + '</span>' +
+        '<span class="nm">' + escapeHtml(row.name || "???") + '</span>' +
+        '<span class="t">' + fmtTime(row.time_ms) + '</span>' +
+      '</li>';
+    }).join("");
+  }
+
+  function refreshBoard() {
+    const lvl = currentLevel;
+    const apply = (list) => {
+      const best = dedupeBest(list);     // one row per name (their best) — no repeated names
+      renderBoard(best);
+      myRank = rankOf(best, getUsername());
+      renderYou();
+    };
+    fetchAllScores(lvl).then(apply).catch(() => apply(loadLocalBoard(lvl)));
+  }
+
+  // Best time for a level, for the level-select cards (local PB if known, else "—").
+  function bestLabel(level) {
+    const pb = personalBest(level);
+    return pb === null ? "" : "BEST " + fmtTime(pb);
+  }
+
+  // ---- Maze rendering ----
+  function render() {
+    const mx = GUTTER_X - 2, my = PAD_Y - 2, mw = COLS * CELL + 4, mh = ROWS * CELL + 4;
+    const now = performance.now();
+    const fullLit = now < powerLitUntil;   // power-up active → whole maze visible
+    ctx.clearRect(0, 0, W, H);
+
+    // dark dungeon veil over the play area — the interior stays hidden until lit
+    ctx.fillStyle = "rgba(2,4,14,0.92)";
+    ctx.fillRect(mx, my, mw, mh);
+
+    if (fullLit) {
+      // power-up: light the entire maze (gold wash + every inner wall)
+      ctx.fillStyle = "rgba(255,210,63,0.06)";
+      ctx.fillRect(mx, my, mw, mh);
+      ctx.strokeStyle = COL_WALL;
+      ctx.lineWidth = WALL_W;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      for (const s of innerSegs) { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); }
+      ctx.stroke();
+    } else {
+      // faint torch beam on the "floor" around the dot
+      const beam = ctx.createRadialGradient(curX, curY, 0, curX, curY, TORCH_R);
+      beam.addColorStop(0, "rgba(120,200,255,0.10)");
+      beam.addColorStop(1, "rgba(120,200,255,0)");
+      ctx.fillStyle = beam;
+      ctx.fillRect(mx, my, mw, mh);
+
+      // inner walls drawn to an offscreen layer, then masked to the torch circle
+      lctx.clearRect(0, 0, W, H);
+      lctx.globalCompositeOperation = "source-over";
+      lctx.strokeStyle = COL_WALL;
+      lctx.lineWidth = WALL_W;
+      lctx.lineCap = "round";
+      lctx.beginPath();
+      for (const s of innerSegs) { lctx.moveTo(s.x1, s.y1); lctx.lineTo(s.x2, s.y2); }
+      lctx.stroke();
+      lctx.globalCompositeOperation = "destination-in";   // keep walls only where the torch shines
+      const mask = lctx.createRadialGradient(curX, curY, 0, curX, curY, TORCH_R);
+      mask.addColorStop(0, "rgba(255,255,255,1)");
+      mask.addColorStop(0.55, "rgba(255,255,255,1)");
+      mask.addColorStop(1, "rgba(255,255,255,0)");
+      lctx.fillStyle = mask;
+      lctx.fillRect(0, 0, W, H);
+      lctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(lightCanvas, 0, 0);
+    }
+
+    // outer boundary — always visible
+    ctx.strokeStyle = COL_WALL;
+    ctx.lineWidth = WALL_W;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (const s of boundarySegs) { ctx.moveTo(s.x1, s.y1); ctx.lineTo(s.x2, s.y2); }
+    ctx.stroke();
+
+    // START / EXIT labels (always visible, in the gutters)
+    drawMarker(startZone, COL_START, "START", "left");
+    drawMarker(exitZone, COL_EXIT, "EXIT", "right");
+
+    drawPowerups(fullLit, now);
+    drawTail();
+    drawCursor();
+  }
+
+  // Power-ups glow in the torchlight (or when the maze is fully lit); pulsing gold orb.
+  function drawPowerups(fullLit, now) {
+    for (const p of powerups) {
+      if (!p.active) continue;
+      const dx = curX - p.x, dy = curY - p.y;
+      const d = Math.sqrt(dx * dx + dy * dy);
+      if (!fullLit && d > TORCH_R) continue;   // hidden in the dark
+      const pulse = 0.6 + 0.4 * Math.sin(now * 0.006);
+      ctx.save();
+      ctx.globalAlpha = fullLit ? 1 : clamp(1.2 - d / TORCH_R, 0.25, 1);
+      ctx.shadowColor = "#ffd23f";
+      ctx.shadowBlur = 16 * pulse;
+      ctx.fillStyle = "#ffe680";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 6 + 1.5 * pulse, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = "#fffbe6";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+  }
+
+  function drawTail() {
+    if (trail.length < 2) return;
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let i = 1; i < trail.length; i++) {
+      const a = i / trail.length;            // newer points are brighter/thicker
+      ctx.strokeStyle = "rgba(54,226,255," + (a * 0.55).toFixed(3) + ")";
+      ctx.lineWidth = Math.max(1, CURSOR_R * 1.6 * a);
+      ctx.beginPath();
+      ctx.moveTo(trail[i - 1].x, trail[i - 1].y);
+      ctx.lineTo(trail[i].x, trail[i].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawCursor() {
+    ctx.save();
+    ctx.shadowColor = COL_CURSOR;
+    ctx.shadowBlur = 14;
+    ctx.fillStyle = COL_CURSOR;
+    ctx.beginPath();
+    ctx.arc(curX, curY, CURSOR_R, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawMarker(z, color, label, edge) {
+    if (!z) return;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = LABEL_FONT;
+
+    if (edge === "left") {
+      ctx.fillText(label, GUTTER_X * 0.5, z.y - 15);
+      drawArrow(GUTTER_X * 0.26, z.y + 6, z.x - WALL_W, z.y + 6, color);
+    } else {
+      drawArrow(z.x + WALL_W, z.y - 6, W - GUTTER_X * 0.26, z.y - 6, color);
+      ctx.fillText(label, W - GUTTER_X * 0.5, z.y + 15);
+    }
+    ctx.restore();
+  }
+
+  function drawArrow(x1, y1, x2, y2, color) {
+    const ang = Math.atan2(y2 - y1, x2 - x1);
+    const head = 9, spread = 0.5;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(ang - spread), y2 - head * Math.sin(ang - spread));
+    ctx.lineTo(x2 - head * Math.cos(ang + spread), y2 - head * Math.sin(ang + spread));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // ---- Geometry ----
+  function distToSegment(px, py, s) {
+    const dx = s.x2 - s.x1, dy = s.y2 - s.y1;
+    const len2 = dx * dx + dy * dy;
+    let t = len2 === 0 ? 0 : ((px - s.x1) * dx + (py - s.y1) * dy) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = s.x1 + t * dx, cy = s.y1 + t * dy;
+    const ex = px - cx, ey = py - cy;
+    return Math.sqrt(ex * ex + ey * ey);
+  }
+  function inZone(px, py, z) {
+    const dx = px - z.x, dy = py - z.y;
+    return dx * dx + dy * dy <= z.r * z.r;
+  }
+  function hitsWall(px, py) {
+    for (const s of segments) if (distToSegment(px, py, s) < TOL) return true;
+    return false;
+  }
+
+  // ---- Game flow ----
+  function checkGame() {
+    collectPowerups();
+    if (inZone(curX, curY, exitZone)) { winSequence(); return; }
+    if (hitsWall(curX, curY)) overSequence();
+  }
+
+  function overSequence() {
+    state = "over";
+    stopTimer();                       // freeze the crash time during the popup
+    powerLitUntil = 0; hidePowerHud(); // lights off on a crash
+    showOverlay("GAME OVER!", "over", false);
+    setStatus("BACK TO START…");
+    render();
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (state !== "over") return;
+      resetCursorToStart();
+      resetPowerups();                 // re-arm power-ups for the retry
+      resetTimer();                    // fresh attempt starts at 0:00
+      state = "playing";
+      hideOverlay();
+      setStatus("REACH THE EXIT — AVOID THE WALLS");
+      render();
+    }, POPUP_MS);
+  }
+
+  function winSequence() {
+    state = "win";
+    stopTimer();                       // timer ends at the exit; final time stays on screen
+    hidePowerHud();
+    const finalMs = timerFrozenMs;
+    if (document.pointerLockElement === canvas) document.exitPointerLock(); // free the cursor for menus
+
+    const name = getUsername();
+    if (!name) {
+      // first completion ever: ask for a username (only ever asked once)
+      state = "naming";
+      nameMode = "firstwin";
+      pendingScoreMs = finalMs;
+      showNameModal("firstwin");
+      return;
+    }
+    finalizeWin(finalMs, name);
+  }
+
+  // Unlock the next level, record/submit the score for the current level, show LEVEL COMPLETE.
+  function finalizeWin(finalMs, name) {
+    saveUnlocked(clamp(Math.max(loadUnlocked(), currentLevel + 1), 1, MAX_LEVEL));
+    const pb = personalBest(currentLevel);
+    const isBest = pb === null || finalMs < pb;
+    setPersonalBest(currentLevel, finalMs);
+    submitScore(name, finalMs, currentLevel).then(refreshBoard);
+    showLevelComplete(finalMs, isBest);
+  }
+
+  function showLevelComplete(finalMs, isBest) {
+    state = "levelcomplete";
+    const last = currentLevel >= MAX_LEVEL;
+    lcTitleEl.textContent = last ? "ALL LEVELS COMPLETE!" : ("LEVEL " + currentLevel + " COMPLETE");
+    lcTimeEl.textContent = fmtTime(finalMs);
+    lcSubEl.textContent = isBest ? "NEW BEST! 🏆" : "";
+    lcNextBtn.style.display = last ? "none" : "";
+    lcNextBtn.textContent = last ? "" : ("NEXT: LEVEL " + (currentLevel + 1) + " ▶");
+    levelComplete.className = "overlay show";
+    setStatus(last ? "YOU BEAT EVERY LEVEL!" : "LEVEL CLEARED!");
+    render();
+  }
+  function hideLevelComplete() { levelComplete.className = "overlay"; }
+
+  // ---- Screen / menu management ----
+  function setScreen(mode) {           // "menu" | "game"
+    const inMenu = mode === "menu";
+    menuScreen.style.display = inMenu ? "flex" : "none";
+    playEl.style.display = inMenu ? "none" : "flex";
+    statusEl.style.display = inMenu ? "none" : "block";
+    hintEl.style.display = inMenu ? "none" : "block";
+    contentEl.classList.toggle("center-menu", inMenu); // vertically center the menu
+  }
+  function showMenuView(which) {       // "main" | "levels" | "highscores"
+    menuMain.hidden = which !== "main";
+    levelSelect.hidden = which !== "levels";
+    highscoresView.hidden = which !== "highscores";
+  }
+  function showMenuMain() { showMenuView("main"); }
+  function showLevelSelect() { renderLevelCards(); showMenuView("levels"); }
+  function showHighscores() { renderHighscores(); showMenuView("highscores"); }
+
+  // High-scores view: one mini-board per level (top 5), fetched live (local fallback).
+  function renderHighscores() {
+    const me = getUsername();
+    hsBoards.innerHTML = LEVELS.map(L =>
+      '<div class="hs-block">' +
+        '<div class="hs-head">LEVEL ' + L.n + ' — ' + L.label + '</div>' +
+        '<ol class="scores" id="hsL' + L.n + '"><li class="empty">— — —</li></ol>' +
+      '</div>'
+    ).join("");
+    LEVELS.forEach(L => {
+      fetchAllScores(L.n).then(list => {
+        const best = dedupeBest(list).slice(0, 5);
+        const ol = document.getElementById("hsL" + L.n);
+        if (!ol) return;
+        if (!best.length) { ol.innerHTML = '<li class="empty">— — —</li>'; return; }
+        ol.innerHTML = best.map((row, i) =>
+          '<li' + (me && row.name === me ? ' class="me"' : '') + '>' +
+            '<span class="rank">' + (i + 1) + '</span>' +
+            '<span class="nm">' + escapeHtml(row.name || "???") + '</span>' +
+            '<span class="t">' + fmtTime(row.time_ms) + '</span>' +
+          '</li>'
+        ).join("");
+      }).catch(() => {});
+    });
+  }
+
+  function renderLevelCards() {
+    const unlocked = loadUnlocked();
+    levelsGrid.innerHTML = LEVELS.map(L => {
+      const locked = L.n > unlocked;
+      const best = bestLabel(L.n);
+      return '<button class="level-card' + (locked ? " locked" : "") + '" data-level="' + L.n + '"' + (locked ? " disabled" : "") + '>' +
+        '<div class="card-num">LEVEL ' + L.n + '</div>' +
+        '<div class="card-size">' + L.label + '</div>' +
+        '<div class="card-grid">' + L.cols + '×' + L.rows + '</div>' +
+        '<div class="card-best">' + best + '</div>' +
+        '<div class="card-state">' + (locked ? "🔒 LOCKED" : "PLAY ▶") + '</div>' +
+      '</button>';
+    }).join("");
+    Array.prototype.forEach.call(levelsGrid.querySelectorAll(".level-card:not(.locked)"), (btn) => {
+      btn.addEventListener("click", () => startLevel(Number(btn.dataset.level)));
+    });
+  }
+
+  function goToMenu() {
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+    clearTimeout(timer);
+    state = "menu";
+    hideOverlay(); hideNameModal(); hideLevelComplete(); hidePowerHud();
+    showMenuMain();
+    setScreen("menu");
+  }
+
+  // Begin a level (called from a real click, so pointer lock is allowed).
+  function startLevel(n) {
+    if (n > loadUnlocked()) return;     // safety: locked
+    setScreen("game");
+    hideOverlay(); hideNameModal(); hideLevelComplete(); hidePowerHud();
+    loadLevel(n);
+    state = "prompt";
+    showOverlay("▶ CLICK TO PLAY", "prompt", true);   // fallback if pointer-lock doesn't engage
+    setStatus("REACH THE EXIT — AVOID THE WALLS");
+    render();
+    canvas.requestPointerLock();
+  }
+
+  // ---- Overlay helpers ----
+  function showOverlay(text, cls, clickable) {
+    overlayMsgEl.textContent = text;
+    overlayEl.className = "overlay show " + cls + (clickable ? " click" : "");
+  }
+  function hideOverlay() { overlayEl.className = "overlay"; }
+  function setStatus(t) { statusEl.textContent = t; }
+
+  function showNameModal(mode) {
+    if (mode === "change") {
+      nameTitleEl.textContent = "CHANGE NAME";
+      nameSubEl.innerHTML = "ENTER A NEW NAME FOR<br />THE GLOBAL LEADERBOARD";
+    } else {
+      nameTitleEl.textContent = "YOU SOLVED IT!";
+      nameSubEl.innerHTML = "ENTER A NAME FOR<br />THE GLOBAL LEADERBOARD";
+    }
+    hideOverlay();
+    nameModal.className = "overlay show";
+    nameInput.value = getUsername();
+    setTimeout(() => { nameInput.focus(); nameInput.select(); }, 30);
+  }
+  function hideNameModal() { nameModal.className = "overlay"; }
+
+  // ---- Pointer lock + input ----
+  function onMove(e) {
+    if (state !== "playing") return;
+    if (document.pointerLockElement !== canvas) return;
+    curX = clamp(curX + e.movementX, 0, W);
+    curY = clamp(curY + e.movementY, 0, H);
+    if (e.movementX || e.movementY) startTimer();   // timer begins on first real movement
+    trail.push({ x: curX, y: curY });
+    if (trail.length > TAIL_LEN) trail.shift();
+    checkGame();
+    render();
+  }
+
+  overlayEl.addEventListener("click", () => {
+    if (state === "prompt") canvas.requestPointerLock();
+  });
+
+  // Menu buttons
+  playBtn.addEventListener("click", () => startLevel(loadUnlocked())); // resume highest unlocked
+  levelsBtn.addEventListener("click", () => showLevelSelect());
+  levelsBack.addEventListener("click", () => showMenuMain());
+  highscoresBtn.addEventListener("click", () => showHighscores());
+  hsBack.addEventListener("click", () => showMenuMain());
+  creditsBtn.addEventListener("click", () => window.open(CREDITS_URL, "_blank", "noopener"));
+  toMenuBtn.addEventListener("click", () => goToMenu());
+
+  // Level-complete buttons
+  lcNextBtn.addEventListener("click", () => { if (currentLevel < MAX_LEVEL) startLevel(currentLevel + 1); });
+  lcReplayBtn.addEventListener("click", () => startLevel(currentLevel));
+  lcMenuBtn.addEventListener("click", () => goToMenu());
+
+  // Username capture — used both for the first solve and for a manual rename.
+  nameForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = sanitizeName(nameInput.value);
+    setUsername(name);
+    hideNameModal();
+
+    if (nameMode === "firstwin") {
+      const ms = pendingScoreMs; pendingScoreMs = 0;
+      nameMode = "firstwin";
+      finalizeWin(ms, name);             // unlock + submit(level) + show LEVEL COMPLETE
+    } else {
+      nameMode = "firstwin";
+      refreshBoard();
+      renderYou();
+      state = "prompt";
+      setStatus("NAME CHANGED TO " + name);
+      showOverlay("▶ CLICK TO PLAY", "prompt", true);
+      render();
+    }
+  });
+
+  // Manual rename (only reachable when the cursor isn't locked, i.e. on the prompt screen).
+  changeNameBtn.addEventListener("click", () => {
+    nameMode = "change";
+    state = "naming";
+    if (document.pointerLockElement === canvas) document.exitPointerLock();
+    showNameModal("change");
+  });
+
+  document.addEventListener("pointerlockchange", () => {
+    // ignore lock changes that happen while in a menu/modal/complete screen
+    if (state === "menu" || state === "naming" || state === "levelcomplete" || state === "win") return;
+    if (document.pointerLockElement === canvas) {
+      clearTimeout(timer);
+      resetCursorToStart();
+      resetTimer();                    // each lock-in is a fresh run; timer starts on first move
+      state = "playing";
+      hideOverlay();
+      setStatus("REACH THE EXIT — AVOID THE WALLS");
+      render();
+    } else {
+      clearTimeout(timer);
+      state = "prompt";
+      showOverlay("▶ CLICK TO PLAY", "prompt", true);
+      setStatus("CURSOR RELEASED — CLICK TO CONTINUE");
+      render();
+    }
+  });
+
+  document.addEventListener("mousemove", onMove);
+
+  // ---- Live starfield (sky rotating as the Earth turns) ----
+  let stars = [];
+  let scx = 0, scy = 0, rot = 0;
+
+  function initStars() {
+    const w = window.innerWidth, h = window.innerHeight;
+    starCanvas.width = w;
+    starCanvas.height = h;
+    scx = w / 2; scy = h / 2;
+    const maxR = Math.hypot(w, h) / 2 * 1.15; // overscan so corners stay populated as they sweep
+    const n = Math.min(520, Math.floor(w * h / 4500));
+    stars = [];
+    for (let i = 0; i < n; i++) {
+      stars.push({
+        ang: Math.random() * Math.PI * 2,
+        rad: Math.sqrt(Math.random()) * maxR, // sqrt -> uniform spread over the disc
+        size: Math.random() * 1.3 + 0.3,
+        base: Math.random() * 0.55 + 0.45,
+        tw: Math.random() * Math.PI * 2,
+        tws: Math.random() * 0.003 + 0.001,
+        glow: Math.random() < 0.05,
+      });
+    }
+  }
+
+  function paintStars(t) {
+    const w = starCanvas.width, h = starCanvas.height;
+    sctx.clearRect(0, 0, w, h);
+    rot += ROT_SPEED;
+    for (const s of stars) {
+      const a = s.ang + rot;
+      const x = scx + s.rad * Math.cos(a);
+      const y = scy + s.rad * Math.sin(a);
+      if (x < -6 || x > w + 6 || y < -6 || y > h + 6) continue;
+      const alpha = s.base * (0.55 + 0.45 * Math.sin(t * s.tws + s.tw));
+      sctx.globalAlpha = clamp(alpha, 0, 1);
+      if (s.glow) {
+        sctx.save();
+        sctx.shadowColor = "#cfe3ff";
+        sctx.shadowBlur = 8;
+        sctx.fillStyle = "#eaf2ff";
+        sctx.beginPath();
+        sctx.arc(x, y, s.size + 0.8, 0, Math.PI * 2);
+        sctx.fill();
+        sctx.restore();
+      } else {
+        sctx.fillStyle = "#ffffff";
+        sctx.beginPath();
+        sctx.arc(x, y, s.size, 0, Math.PI * 2);
+        sctx.fill();
+      }
+    }
+    sctx.globalAlpha = 1;
+  }
+  function loopStars(t) {
+    paintStars(t);
+    requestAnimationFrame(loopStars);
+  }
+  window.addEventListener("resize", () => { initStars(); paintStars(0); });
+
+  // ---- Init ----
+  initStars();
+  paintStars(0);                       // immediate static frame (covers hidden tabs / paused rAF)
+  requestAnimationFrame(loopStars);    // animate while the tab is visible
+  loadLevel(loadUnlocked());           // size the canvas + build a maze + load that level's board
+  renderYou();
+  state = "menu";
+  showMenuMain();
+  setScreen("menu");
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render); // redraw labels in the pixel font once loaded
+})();
+</script>
+</body>
+</html>
