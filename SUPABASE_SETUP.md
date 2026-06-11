@@ -170,6 +170,61 @@ create trigger scores_keep_best
 After running this, scores submit and display per level. Until you run it, the game still
 works — per-level scores just fall back to each browser's local storage.
 
+## 4d. (Required for Breakout) Breakout high-score table
+The Breakout game ranks players by **highest level reached** (tie-break by points), in its own
+table. Run this once in the **SQL Editor**. It reuses the same project + player name as the
+other games; until you run it, Breakout scores fall back to per-device local storage.
+
+```sql
+create table public.breakout_scores (
+  id bigint generated always as identity primary key,
+  name text not null,
+  level smallint not null,
+  score integer not null default 0,
+  created_at timestamptz not null default now()
+);
+
+alter table public.breakout_scores enable row level security;
+
+create policy "public read" on public.breakout_scores for select using (true);
+create policy "public insert" on public.breakout_scores
+  for insert with check (
+    char_length(name) between 1 and 12 and name ~ '^[A-Za-z0-9 _-]+$'
+    and level between 1 and 20 and score between 0 and 1000000
+  );
+
+-- one row per player, keeping their best (highest level, then highest score)
+alter table public.breakout_scores add constraint breakout_name_unique unique (name);
+
+create or replace function public.breakout_keep_best()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.name is null or char_length(new.name) < 1 or char_length(new.name) > 12
+     or new.name !~ '^[A-Za-z0-9 _-]+$' then raise exception 'invalid name'; end if;
+  if new.level < 1 or new.level > 20 then raise exception 'invalid level'; end if;
+  if new.score < 0 or new.score > 1000000 then raise exception 'invalid score'; end if;
+
+  if exists (select 1 from public.breakout_scores where name = new.name) then
+    update public.breakout_scores
+       set level = new.level, score = new.score
+     where name = new.name
+       and (new.level > level or (new.level = level and new.score > score));
+    return null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists breakout_keep_best on public.breakout_scores;
+create trigger breakout_keep_best
+  before insert on public.breakout_scores
+  for each row execute function public.breakout_keep_best();
+```
+
 ## 5. Host the file so friends can open it
 `localhost:8123` only works on your machine. To share, put `index.html` on any static host:
 - **Netlify Drop** (easiest): https://app.netlify.com/drop — drag `index.html` in, get a URL.
