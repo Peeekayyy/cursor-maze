@@ -522,7 +522,7 @@
     buildLevel(n, true);
     hideOverlay(); hideNameModal();
     state = "playing";
-    refreshBoards();
+    submitProgress();   // record the level reached right away (no need to game-over)
   }
   let nameCallback = null;
   function askName(cb) {
@@ -537,6 +537,7 @@
     buildLevel(n, false);
     state = "playing";
     hideOverlay();
+    submitProgress();   // record the new level reached immediately
   }
   function loseLife() {
     lives--; updateHud();
@@ -573,6 +574,12 @@
 
   function submitRun() {
     submitScore(getUsername() || "PLAYER", runMaxLevel, score).then(refreshBoards);
+  }
+  // Record the level reached as soon as a player gets there (keep-best trigger keeps the highest).
+  function submitProgress() {
+    const name = getUsername();
+    if (!name) return;
+    submitScore(name, runMaxLevel, score).then(refreshBoards);
   }
 
   // ---- Overlays ----
