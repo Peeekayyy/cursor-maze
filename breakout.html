@@ -168,10 +168,10 @@
         </div>
         <div id="nameModal" class="overlay">
           <form id="nameForm" class="ov-box">
-            <div class="ov-title win">NICE RUN!</div>
-            <div class="ov-sub">ENTER A NAME FOR<br/>THE GLOBAL LEADERBOARD</div>
+            <div class="ov-title win">ENTER YOUR NAME</div>
+            <div class="ov-sub">FOR THE GLOBAL<br/>LEADERBOARD</div>
             <input id="nameInput" maxlength="12" autocomplete="off" spellcheck="false" placeholder="AAA" />
-            <button class="arcade-btn play" type="submit">SAVE &amp; CONTINUE</button>
+            <button class="arcade-btn play" type="submit">SAVE &amp; PLAY</button>
           </form>
         </div>
       </div>
@@ -509,11 +509,26 @@
   // ---- Game flow ----
   function startLevel(n) {
     if (n > loadUnlocked()) return;
+    // first time playing without a saved name? ask up front, then begin.
+    if (!getUsername()) {
+      setScreen("game"); state = "naming"; hideOverlay(); draw();
+      askName(() => beginLevel(n));
+      return;
+    }
+    beginLevel(n);
+  }
+  function beginLevel(n) {
     setScreen("game");
     buildLevel(n, true);
     hideOverlay(); hideNameModal();
     state = "playing";
     refreshBoards();
+  }
+  let nameCallback = null;
+  function askName(cb) {
+    if (getUsername()) { cb(); return; }
+    nameCallback = cb;
+    showNameModal();
   }
   function nextLevel() {
     if (level >= MAX_LEVEL) { winSequence(); return; }
@@ -540,8 +555,7 @@
   }
 
   function showResult(cls, title, sub) {
-    submitRun();   // record to leaderboard (prompts for name once if needed)
-    if (state === "naming") return; // name modal took over
+    submitRun();   // record to leaderboard (name was captured before the run)
     ovTitle.textContent = title; ovTitle.className = "ov-title " + cls;
     ovSub.innerHTML = escapeHtml(sub).replace(/\n/g, "<br/>");
     ovButtons.innerHTML = "";
@@ -557,11 +571,8 @@
     ovButtons.appendChild(b);
   }
 
-  let pendingResult = null;
   function submitRun() {
-    const name = getUsername();
-    if (!name) { pendingResult = { level: runMaxLevel, score }; state = "naming"; showNameModal(); return; }
-    submitScore(name, runMaxLevel, score).then(refreshBoards);
+    submitScore(getUsername() || "PLAYER", runMaxLevel, score).then(refreshBoards);
   }
 
   // ---- Overlays ----
@@ -816,19 +827,11 @@
 
   nameForm.addEventListener("submit", (e) => {
     e.preventDefault();
-    const name = sanitizeName(nameInput.value);
-    setUsername(name); hideNameModal();
-    if (pendingResult) { submitScore(name, pendingResult.level, pendingResult.score).then(refreshBoards); }
+    setUsername(sanitizeName(nameInput.value));
     renderYou();
-    // show the result overlay now that we have a name
-    const last = pendingResult; pendingResult = null;
-    if (state === "naming") {
-      state = (level >= MAX_LEVEL && balls.length) ? "win" : "over";
-      // re-show appropriate result (we were in over/win)
-      const won = last && last.level >= MAX_LEVEL && blocks.filter(b=>b.alive).length === 0;
-      if (won) { state="win"; showResult("win","ALL LEVELS COMPLETE!","SCORE: "+score); }
-      else { state="over"; showResult("over","GAME OVER!","LEVEL REACHED: "+(last?last.level:runMaxLevel)+"\nSCORE: "+score); }
-    }
+    hideNameModal();
+    const cb = nameCallback; nameCallback = null;
+    if (cb) cb();
   });
 
   // ---- Starfield ----
